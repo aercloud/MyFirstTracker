@@ -11,9 +11,9 @@ Use the App with Your AerCloud Account
 
 2. Open *MyFirstTracker.html* in a text editor.
 
-3. Go to line 40 and replace **<your_account_id>** with your AerCloud account id assigned by Aeris.
+3. Go to line 40 and replace **&<your_account_id>** with your AerCloud account id assigned by Aeris.
 
-4. Next, go to line 41 and replace **<your_aercloud_api_key>** with your API key. You can find this
+4. Next, go to line 41 and replace **&<your_aercloud_api_key>** with your API key. You can find this
 key in AerPort (i.e. AerCloud Portal) Dashboard.
 
 5. Copy-n-paste the location of the MyFirstTracker.html file to the Location bar of your favorite
