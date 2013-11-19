@@ -1,0 +1,15 @@
+.project
+.settings
+.classpath
+.checkstyle
+*~
+*.log
+*.lock
+.pydevproject
+*.tar
+*.pyc
+*-tcplocalhost1883
+target/
+logs/
+webservices/data/
+.auto_generated*

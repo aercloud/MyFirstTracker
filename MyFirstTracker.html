@@ -1,0 +1,193 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+        <title>MyFirstTracker</title>
+		<style>
+		html, body {
+		  height:100%;
+		  margin:0;
+		  padding:0;
+		}
+		 #control {
+			background:#fff;
+			padding:5px;
+			font-size:14px;
+			font-family:Arial;
+			border:1px solid #ccc;
+			box-shadow:0 2px 2px rgba(33, 33, 33, 0.4);
+			display:none;
+		  }
+		</style>
+
+	    <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&sensor=false"></script>
+        <script src="http://serverapi.arcgisonline.com/jsapi/gmaps/?v=1.6" type="text/javascript"></script>
+		<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
+		<script type="text/javascript" src="http://demos.aeriscloud.com/js/jquery.base64.js"></script>
+
+        <script type="text/javascript">
+            var map = null;
+            var locator = null;
+            var mapExtension = null;
+            var gOverlays = null;
+
+			// Base URL for AerCloud API
+			var aerCloudApiBase = "http://api.aercloud.aeris.com/v1/";
+			
+			//
+			// *** Please change below values to match your environment ***
+			//
+            var accountId = <your_account_id>;
+			var apiKeyValue = '<your_aercloud_api_key>';
+			
+			/*
+				renderResponse -- Renders the response to the AerCloud API query on a map
+			*/
+			function renderResponse(deviceData){
+			    var bound = new google.maps.LatLngBounds();				
+				var startIcon=new google.maps.MarkerImage('http://www.google.com/mapfiles/dd-start.png');
+				var endIcon=new google.maps.MarkerImage('http://www.google.com/mapfiles/dd-end.png');
+				var movingIcon = new google.maps.MarkerImage('http://www.google.com/mapfiles/marker.png');
+				var marker=endIcon;
+                var paths=[];
+				var lastLat = 0;
+				var lastLng = 0;
+				var jsonContent;
+				//alert("Number of records :" + deviceData.length);
+				for(var i=0;i<deviceData.length;i++){
+					if (deviceData[i].content.contentType == "application/octet-stream") {
+						// Handle base64 encoded
+						jsonContent=JSON.parse($.base64.decode(deviceData[i].content.contentTypeBinary));
+					} else {
+						// Handle straight utf-8
+						jsonContent=JSON.parse(deviceData[i].content.contentTypeBinary);
+					}
+					var lat = jsonContent.Latitude;
+					var lng = jsonContent.Longitude;
+					var timeStamp = jsonContent.LocationTimeStamp;
+					var accuracy = jsonContent.Accuracy;
+					if(typeof(lat)!=="undefined" && typeof(lng)!=="undefined"){
+						if ((Math.abs(lat-lastLat) > .01) || (Math.abs(lng-lastLng) > .01)) {
+							var latLng = new google.maps.LatLng(lat, lng);
+							paths.push(latLng);
+							var marker = new google.maps.Marker({
+							  position: new google.maps.LatLng(lat, lng),
+							  map:map,
+							  draggable:false,
+							  icon:marker,
+							  title:"Date: " + new Date(timeStamp*1000).toString() + " Accuracy: " + accuracy
+							});
+							bound.extend(marker.getPosition());
+							if (i==deviceData.length-2) {marker=startIcon;} else {marker=movingIcon;}
+							lastLat = lat;
+							lastLng = lng;
+						}
+					}
+				}
+				var line = new google.maps.Polyline({
+				  path:paths,
+				  strokeColor:'blue',
+				  strokeOpacity:1.0,
+				  strokeWeight:4
+				});
+				line.setMap(map);
+				// Now set the bounds for the map
+				map.fitBounds(bound);
+			}
+
+
+			/*
+				trackDevice -- Respond to the button press to track a device; This is where we query AerCloud
+			*/
+			function trackDevice(){
+				var sclId=document.getElementById('device').value;
+				var containerId=document.getElementById('container').value;
+				var aerCloudRequestUrl = aerCloudApiBase + accountId + "/scls/" + sclId + "/containers/" + containerId + "/contentInstances?apiKey=" + apiKeyValue;
+				//alert("AerCloud Request URL: " + aerCloudRequestUrl);
+                $.ajax({
+                    url:aerCloudRequestUrl,
+                    dataType:'json',
+                    type:"GET",
+                    success:function(response, status, req) {
+					    //alert("Success.");
+                        if (response == "") {
+                            alert("No records found for device: " + sclId);
+                            return false;
+                        }
+						if (response.contentInstances.length==0) {
+                            alert("No records found for device: " + sclId);
+                            return false;
+						}
+					   //alert("Response :" + JSON.stringify(response));
+                       renderResponse(response.contentInstances);                    
+                    },
+                    error:function(xhr) {
+                        try {                      
+                            alert(jQuery.parseJSON(xhr.responseText).errorMessage);
+                        }
+                        catch (exception) {                          
+                            alert("Response Status Code :" + xhr.status);
+                        }
+                        return false;
+                    }
+                });
+			}
+			
+			
+			/*
+				deleteDeviceData -- Deletes all the data points so you can start from scratch
+			*/
+			function deleteDeviceData(){
+				alert("About to remove device data.");
+				var sclId=document.getElementById('device').value;
+				var containerId=document.getElementById('container').value;
+				var aerCloudRequestUrl = aerCloudApiBase + accountId + "/scls/" + sclId + "/containers/" + containerId + "/contentInstances?apiKey=" + apiKeyValue;
+				$.ajax({
+					url: aerCloudRequestUrl,
+					type: 'DELETE',
+					success: function(result) {
+					alert("All device data deleted");
+					}
+				});
+			}
+
+			/*
+				Initialize our Google map 
+			*/
+            function initialize() {
+                // Locator
+                locator = new esri.arcgis.gmaps.Locator("http://sampleserver1.arcgisonline.com/ArcGIS/rest/services/Locators/ESRI_Geocode_USA/GeocodeServer");
+   			    var mapOptions = {
+	   				    center:new google.maps.LatLng(38.899583425982705, -95.3342056274414),
+						zoom:5,
+						mapTypeId:google.maps.MapTypeId.ROADMAP,
+						navigationControl:true						
+				}
+  			    // GMap construction
+                map = new google.maps.Map(document.getElementById('map'),mapOptions);
+       		    var control = document.getElementById('control');
+				 control.style.display = 'block';
+				// We don't really need to set an index value here, but
+				// this would be how you do it. Note that we set this
+				// value as a property of the DIV itself.
+			 	control.index = 1;
+			    map.controls[google.maps.ControlPosition.TOP].push(control);
+			}
+			
+		    google.maps.event.addDomListener(window, 'load', initialize);
+        </script>
+    </head>
+
+    <body>
+	   <div id="control" style="z-index: 1; overflow: hidden">
+		  <strong>Device:</strong>
+			<input type="text" id="device" value="MyFirstDevice" size="30" style="font-size:14pt; width:200px"/><br>
+		  <strong>Container:</strong>
+			<input type="text" id="container" value="MyFirstContainer" size="30" style="font-size:14pt; width:200px"/><br>
+		  &nbsp;&nbsp;
+		  <input type="button" value="Track Device" style="font-size:14pt" onclick="javascript:trackDevice();"/>	   
+		  <input type="button" value="Delete Device Data" style="font-size:14pt" onclick="javascript:deleteDeviceData();"/>	   
+       </div>
+     <div id="map" style="position: absolute; left: 0px; top: 0px; overflow: hidden; width: 100%; height: 100%; z-index: 0;""></div>      
+    </body>
+</html>
